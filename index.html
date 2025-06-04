@@ -1,59 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Overnight Oats Order Mapper</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 2rem; }
     textarea { width: 100%; height: 200px; margin-bottom: 1rem; font-family: monospace; }
-    button { padding: 0.5rem 1rem; font-size: 1rem; border-radius: 0.25rem; margin: 0.25rem; }
+    button, select { padding: 0.5rem 1rem; font-size: 1rem; border-radius: 0.25rem; margin: 0.25rem; }
     .label { font-weight: bold; margin-bottom: 0.5rem; display: block; }
     #buttons { margin-bottom: 1rem; }
   </style>
 </head>
 <body>
   <h1>Overnight Oats Order Mapper</h1>
+
   <label class="label" for="input">Paste lines with or without quantities to convert or sort:</label>
-  <textarea id="input" placeholder="PB cookie cacao crunch - 1\n2×(2-2-3) Mint"></textarea>
+  <textarea id="input" placeholder="2×(1-2-3) Blueberry
+Flavor x 3
+5 Vanilla
+Vanilla x2"></textarea>
+
   <div id="buttons">
     <button id="convertCode2Full">Convert Codes → Full</button>
     <button id="convertFull2Code">Convert Full → Codes</button>
     <button id="sortCode2Full">Sort Coded List → Full (A→Z)</button>
     <button id="sortFull2Code">Sort Full List → Codes (Numeric)</button>
     <button id="addFlavor">Add Flavor</button>
+    <button id="deleteFlavor">Delete Flavor</button>
+    <select id="categorySelect">
+      <option value="">-- Select Category --</option>
+      <option value="Vegan">Vegan</option>
+      <option value="Whey">Whey</option>
+      <option value="Fruit">Fruit</option>
+      <option value="Caffeinated">Caffeinated</option>
+      <option value="Subscriber Only">Subscriber Only</option>
+    </select>
+    <button id="printByCategory">Print by Category</button>
   </div>
+
   <label class="label" for="output">Output:</label>
   <textarea id="output" readonly placeholder="Results appear here..."></textarea>
 
   <script>
-    // === PERSISTENCE ===
+    // === PERSISTENCE (localStorage) ===
     const STORAGE_KEY = 'oatsMapper';
-    function loadStorage() {
-      try {
-        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-        if (saved) {
-          CODE_TO_SHORTHAND = { ...DEFAULT_CODE_TO_SHORTHAND, ...saved.code2sh };
-          SHORTHAND_TO_FULL = { ...DEFAULT_SHORTHAND_TO_FULL, ...saved.sh2full };
-        } else {
-          CODE_TO_SHORTHAND = { ...DEFAULT_CODE_TO_SHORTHAND };
-          SHORTHAND_TO_FULL = { ...DEFAULT_SHORTHAND_TO_FULL };
-        }
-      } catch (e) {
-        console.warn('Load storage failed', e);
-        CODE_TO_SHORTHAND = { ...DEFAULT_CODE_TO_SHORTHAND };
-        SHORTHAND_TO_FULL = { ...DEFAULT_SHORTHAND_TO_FULL };
-      }
-    }
-    function saveStorage() {
-      const code2sh = {};
-      const sh2full = {};
-      for (const k in CODE_TO_SHORTHAND) if (!DEFAULT_CODE_TO_SHORTHAND[k]) code2sh[k] = CODE_TO_SHORTHAND[k];
-      for (const k in SHORTHAND_TO_FULL) if (!DEFAULT_SHORTHAND_TO_FULL[k]) sh2full[k] = SHORTHAND_TO_FULL[k];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ code2sh, sh2full }));
-    }
 
-    // === DEFAULT MAPPINGS ===
+    // Default mappings for codes → shorthand
     const DEFAULT_CODE_TO_SHORTHAND = {
       '1-1-1':'Pumpkin','1-1-2':'Fruity','1-1-3':'Vanilla','1-1-4':'MATCHA',
       '1-2-1':'OREO','1-2-2':'Coconut','1-2-3':'Blueberry','1-2-4':'NEW SHAKER BOTTLE GREEN','1-3-1':'Peppermint',
@@ -69,6 +62,8 @@
       '5-2-1':'Mocha Dream','5-2-2':'Sea Salt','5-2-3':'Smores','5-2-4':'Space Brownie','5-3-1':'EGGNOG',
       '6-1-1':'SPICE LATTE','6-1-2':'Strwbry Banana','6-2-1':'Apple','6-2-2':'Banana','6-2-3':'Peanut Butter','6-2-4':'Birthday'
     };
+
+    // Default mappings for shorthand → full
     const DEFAULT_SHORTHAND_TO_FULL = {
       'Pumpkin':'Pumpkin Pie','Fruity':'Fruity Cereal','Vanilla':'Vanilla','MATCHA':'Matcha Mango',
       'OREO':'Cookies and Cream','Coconut':'Coconut Cream Pie','Blueberry':'Blueberry Cobbler','NEW SHAKER BOTTLE GREEN':'NEW SHAKER BOTTLE GREEN','Peppermint':'Peppermint Mocha',
@@ -83,10 +78,177 @@
       'Sea Salt':'Dark Chocolate Sea Salt','Smores':'S’mores','Space Brownie':'Space Brownie','EGGNOG':'Eggnog',
       'SPICE LATTE':'Pumpkin Spice Latte','Strwbry Banana':'Strawberry Banana','Apple':'Green Apple Cinnamon','Banana':'Banana Bread','Peanut Butter':'Peanut Butter Cookie Dough Cacao Crunch','Birthday':'Birthday Cake'
     };
-    let CODE_TO_SHORTHAND = {}, SHORTHAND_TO_FULL = {};
+
+    // Default category lists
+    const DEFAULT_FLAVORS_BY_TYPE = {
+      Vegan: [
+        "Banana Bread",
+        "Blueberry Cobbler",
+        "Caramel Cold Brew",
+        "Carrot Cake",
+        "Chocolate Chip Cookie Dough",
+        "Chocolate Covered Banana",
+        "Cinnamon Roll",
+        "Dark Chocolate Sea Salt",
+        "Iced Lemon Loaf",
+        "Maple Pancakes",
+        "Peanut Butter Cookie Dough Cacao Crunch",
+        "Pumpkin Pie",
+        "Snickerdoodle",
+        "Strawberry Banana",
+        "Strawberry Rhubarb"
+      ],
+      Whey: [
+        "Bananas Foster",
+        "Birthday Cake",
+        "Boston Cream",
+        "Caramel Apple",
+        "Cherry Pie",
+        "Chocolate Cake",
+        "Chocolate Peanut Butter Banana",
+        "Chocolate Satin Pie",
+        "Coconut Cream Pie",
+        "Cookie Butter",
+        "Cookies and Cream",
+        "Eggnog",
+        "French Toast",
+        "Fruity Cereal",
+        "Gingerbread",
+        "Glazed Blueberry Donut",
+        "Green Apple Cinnamon",
+        "Mango Custard",
+        "Mango Matcha",
+        "Mixed Berries & Cream",
+        "Mocha Dream",
+        "Orange Cream Pop",
+        "Peach Upside Down Cake",
+        "Peanut Butter & Jelly",
+        "Peppermint Mocha",
+        "Piña Colada",
+        "Pumpkin Pie",
+        "S’mores",
+        "Salted Toffee",
+        "Space Brownie",
+        "Strawerries & Cream",
+        "Tiramisu",
+        "Vanilla",
+        "White Chocolate Raspberry"
+      ],
+      Fruit: [
+        "Pumpkin Spice Latte",
+        "Strawberries & Cream",
+        "Strawberry Banana",
+        "Strawberry Rhubarb",
+        "White Chocolate Raspberry",
+        "Matcha Mango",
+        "Mixed Berries & Cream",
+        "Orange Cream Pop",
+        "Peach Upside Down Cake",
+        "Peanut Butter & Jelly",
+        "Piña Colada",
+        "Coconut Cream Pie",
+        "Fruity Cereal",
+        "Glazed Blueberry Donut",
+        "Green Apple Cinnamon",
+        "Iced Lemon Loaf",
+        "Mango Custard",
+        "Banana Bread",
+        "Bananas Foster",
+        "Blueberry Cobbler",
+        "Caramel Apple",
+        "Cherry Pie",
+        "Chocolate Peanut Butter Banana"
+      ],
+      Caffeinated: [
+        "Caramel Cold Brew",
+        "Matcha Mango",
+        "Mocha Dream",
+        "Peppermint Mocha",
+        "Pumpkin Spice Latte",
+        "Tiramisu"
+      ],
+      "Subscriber Only": [
+        "Caramel Apple",
+        "Orange Cream Pop",
+        "Peanut Butter & Jelly",
+        "Piña Colada",
+        "Strawberry Banana",
+        "White Chocolate Raspberry"
+      ]
+    };
+
+    // In-memory copies
+    let CODE_TO_SHORTHAND = {};
+    let SHORTHAND_TO_FULL = {};
+    let FLAVORS_BY_TYPE = {};
+
+    // Load from localStorage or fallback
+    function loadStorage() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        if (saved) {
+          CODE_TO_SHORTHAND = { ...DEFAULT_CODE_TO_SHORTHAND, ...saved.code2sh };
+          SHORTHAND_TO_FULL = { ...DEFAULT_SHORTHAND_TO_FULL, ...saved.sh2full };
+
+          FLAVORS_BY_TYPE = {};
+          // start with default arrays
+          for (const cat in DEFAULT_FLAVORS_BY_TYPE) {
+            FLAVORS_BY_TYPE[cat] = [...DEFAULT_FLAVORS_BY_TYPE[cat]];
+          }
+          // overwrite only if saved array is non-empty
+          for (const cat in saved.categories) {
+            const arr = saved.categories[cat] || [];
+            if (arr.length > 0) {
+              FLAVORS_BY_TYPE[cat] = arr.slice();
+            }
+          }
+        } else {
+          CODE_TO_SHORTHAND = { ...DEFAULT_CODE_TO_SHORTHAND };
+          SHORTHAND_TO_FULL = { ...DEFAULT_SHORTHAND_TO_FULL };
+          FLAVORS_BY_TYPE = {};
+          for (const cat in DEFAULT_FLAVORS_BY_TYPE) {
+            FLAVORS_BY_TYPE[cat] = [...DEFAULT_FLAVORS_BY_TYPE[cat]];
+          }
+        }
+      } catch (e) {
+        console.warn('Load storage failed', e);
+        CODE_TO_SHORTHAND = { ...DEFAULT_CODE_TO_SHORTHAND };
+        SHORTHAND_TO_FULL = { ...DEFAULT_SHORTHAND_TO_FULL };
+        FLAVORS_BY_TYPE = {};
+        for (const cat in DEFAULT_FLAVORS_BY_TYPE) {
+          FLAVORS_BY_TYPE[cat] = [...DEFAULT_FLAVORS_BY_TYPE[cat]];
+        }
+      }
+      console.log("FLAVORS_BY_TYPE after loadStorage:", FLAVORS_BY_TYPE);
+    }
+
+    function saveStorage() {
+      const code2sh = {};
+      const sh2full = {};
+      for (const k in CODE_TO_SHORTHAND) {
+        if (!DEFAULT_CODE_TO_SHORTHAND[k]) code2sh[k] = CODE_TO_SHORTHAND[k];
+      }
+      for (const k in SHORTHAND_TO_FULL) {
+        if (!DEFAULT_SHORTHAND_TO_FULL[k]) sh2full[k] = SHORTHAND_TO_FULL[k];
+      }
+      const categoriesToSave = {};
+      for (const cat in FLAVORS_BY_TYPE) {
+        const def = DEFAULT_FLAVORS_BY_TYPE[cat] || [];
+        const arr = FLAVORS_BY_TYPE[cat];
+        if (arr.length !== def.length || arr.some((f, i) => def[i] !== f)) {
+          categoriesToSave[cat] = arr.slice();
+        }
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        code2sh,
+        sh2full,
+        categories: categoriesToSave
+      }));
+    }
+
     loadStorage();
 
-    // === HELPERS ===
+    // === NORMALIZATION HELPERS ===
     function normalize(str) {
       return str.toLowerCase()
                 .replace(/&/g, ' and ')
@@ -94,6 +256,7 @@
                 .replace(/\s+/g, ' ')
                 .trim();
     }
+
     function levenshtein(a, b) {
       const dp = Array(b.length + 1).fill().map(() => Array(a.length + 1).fill(0));
       for (let i = 0; i <= a.length; i++) dp[0][i] = i;
@@ -109,96 +272,124 @@
       }
       return dp[b.length][a.length];
     }
+
     function resolveFullName(input) {
       const norm = normalize(input);
-      for (const f of FULL_NAMES) {
-        if (normalize(f) === norm) return f;
+      for (const full of FULL_NAMES) {
+        if (normalize(full) === norm) return full;
       }
       const partials = FULL_NAMES.filter(f => normalize(f).includes(norm));
       if (partials.length === 1) return partials[0];
       if (partials.length > 1) {
         const choice = prompt(
-          `Multiple matches for "${input}":\n` + partials.map((c,i)=>`${i+1}. ${c}`).join('\n') + `\nEnter number:`
+          `Multiple matches for "${input}":\n` +
+          partials.map((c, i) => `${i + 1}. ${c}`).join('\n') +
+          '\nEnter number:'
         );
-        const idx = parseInt(choice,10)-1;
-        if (!isNaN(idx) && idx>=0 && idx<partials.length) return partials[idx];
+        const idx = parseInt(choice, 10) - 1;
+        if (!isNaN(idx) && idx >= 0 && idx < partials.length) return partials[idx];
       }
-      // auto-match closest
-      const dists = FULL_NAMES.map(f => ({ name: f, dist: levenshtein(normalize(f), norm) }));
-      dists.sort((a,b)=>a.dist-b.dist);
-      return dists[0].name;
+      const distances = FULL_NAMES.map(f => ({ name: f, dist: levenshtein(normalize(f), norm) }));
+      distances.sort((a, b) => a.dist - b.dist);
+      const best = distances[0];
+      if (best.dist <= Math.floor(best.name.length * 0.4)) {
+        if (confirm(`Did you mean "${best.name}" for "${input}"?`)) return best.name;
+      }
+      return input;
     }
+
     function preprocessName(name) {
       return name.replace(/^pb\s+/i, 'Peanut Butter ');
     }
 
-    // Parser strips trailing hyphens on names
+    // === PARSER ===
     const qtyFront = /^\s*(\d+)\s*[×x\- ]*\s*(.+)$/;
     const qtyEnd = /^(.+?)\s*[×x\- ]*\s*(\d+)\s*$/;
     const codeContent = /\((\d+-\d+-\d+)\)\s*(.+)/;
+
     function parseLine(line) {
       let qty = 1, rest = line.trim(), m;
       if ((m = rest.match(qtyFront)) && isNaN(+m[2])) {
-        qty = +m[1]; rest = m[2].trim().replace(/[-]+$/,'').trim();
+        qty = +m[1];
+        rest = m[2].trim();
       } else if ((m = rest.match(qtyEnd)) && isNaN(+m[1])) {
-        qty = +m[2]; rest = m[1].trim().replace(/[-]+$/,'').trim();
+        qty = +m[2];
+        rest = m[1].trim();
       }
       return { qty, rest };
     }
 
-    // Build maps
-    let CODE_TO_FULL = {}, FULL_TO_CODE = {}, FULL_NAMES = [];
+    // === HELPER MAPS ===
+    let CODE_TO_FULL = {};
+    let FULL_TO_CODE = {};
+    let FULL_NAMES = [];
+
     function rebuildMaps() {
       CODE_TO_FULL = {};
       FULL_TO_CODE = {};
       FULL_NAMES = Object.values(SHORTHAND_TO_FULL);
-      Object.entries(CODE_TO_SHORTHAND).forEach(([c,sh]) => {
-        if (SHORTHAND_TO_FULL[sh]) CODE_TO_FULL[c] = SHORTHAND_TO_FULL[sh];
+      Object.entries(CODE_TO_SHORTHAND).forEach(([code, sh]) => {
+        if (SHORTHAND_TO_FULL[sh]) {
+          CODE_TO_FULL[code] = SHORTHAND_TO_FULL[sh];
+        }
       });
-      Object.entries(SHORTHAND_TO_FULL).forEach(([sh,full]) => {
-        const c = Object.entries(CODE_TO_SHORTHAND).find(([k,v])=>v===sh)?.[0];
-        if (c) FULL_TO_CODE[full] = { code: c, shorthand: sh };
+      Object.entries(SHORTHAND_TO_FULL).forEach(([sh, full]) => {
+        const c = Object.entries(CODE_TO_SHORTHAND).find(([k, v]) => v === sh)?.[0];
+        if (c) {
+          FULL_TO_CODE[full] = { code: c, shorthand: sh };
+        }
       });
     }
+
     rebuildMaps();
 
-    // Convert & sort
+    // === CONVERT & SORT ===
     function convertCode2Full(text) {
       return text.split(/\r?\n/).map(line => {
         const { qty, rest } = parseLine(line);
-        const m = rest.match(codeContent);
+        const name = preprocessName(rest);
+        const m = name.match(codeContent);
         if (m) {
-          const full = CODE_TO_FULL[m[1]] || resolveFullName(preprocessName(m[2] || rest));
+          const full = CODE_TO_FULL[m[1]] || resolveFullName(m[2]);
           return `${qty} × ${full}`;
+        }
+        const resolved = resolveFullName(name);
+        const entry = FULL_TO_CODE[resolved];
+        if (entry) {
+          return `${qty} × ${resolved}`;
         }
         return line;
       }).join("\n");
     }
+
     function convertFull2Code(text) {
       return text.split(/\r?\n/).map(line => {
         const { qty, rest } = parseLine(line);
         const name = preprocessName(rest);
         const full = resolveFullName(name);
         const e = FULL_TO_CODE[full];
-        return e ? `${qty} × (${e.code}) ${e.shorthand}` : line;
+        if (e) return `${qty} × (${e.code}) ${e.shorthand}`;
+        return line;
       }).join("\n");
     }
+
     function sortCode2Full(text) {
       return text.split(/\r?\n/)
         .map(line => {
           const { qty, rest } = parseLine(line);
           const m = rest.match(codeContent);
           if (m) {
-            const full = CODE_TO_FULL[m[1]] || resolveFullName(preprocessName(m[2] || rest));
+            const full = CODE_TO_FULL[m[1]] || resolveFullName(m[2]);
             return { qty, full };
           }
           return null;
         })
         .filter(Boolean)
-        .sort((a,b)=>a.full.localeCompare(b.full))
-        .map(i=>`${i.qty} × ${i.full}`)
+        .sort((a, b) => a.full.localeCompare(b.full))
+        .map(i => `${i.qty} × ${i.full}`)
         .join("\n");
     }
+
     function sortFull2Code(text) {
       return text.split(/\r?\n/)
         .map(line => {
@@ -206,19 +397,40 @@
           const name = preprocessName(rest);
           const full = resolveFullName(name);
           const e = FULL_TO_CODE[full];
-          if (e) return { qty, parts: e.code.split('-').map(n=>+n), entry: e };
+          if (e) {
+            const parts = e.code.split('-').map(n => +n);
+            return { qty, parts, entry: e };
+          }
           return null;
         })
         .filter(Boolean)
-        .sort((a,b)=>a.parts.reduce((sum,v,i)=>sum||v-b.parts[i],0))
-        .map(i=>`${i.qty} × (${i.entry.code}) ${i.entry.shorthand}`)
+        .sort((a, b) => a.parts.reduce((acc, v, i) => acc || v - b.parts[i], 0))
+        .map(i => `${i.qty} × (${i.entry.code}) ${i.entry.shorthand}`)
         .join("\n");
     }
 
-    // Add flavor
+    // === PRINT BY CATEGORY ===
+    function printByCategory() {
+      const cat = document.getElementById('categorySelect').value;
+      if (!cat) {
+        alert('Please select a category.');
+        return;
+      }
+      // Fallback to default if undefined or empty
+      let list = FLAVORS_BY_TYPE[cat];
+      if (!Array.isArray(list) || list.length === 0) {
+        list = DEFAULT_FLAVORS_BY_TYPE[cat] || [];
+      }
+      console.log("Printing category:", cat, "→", list);
+      document.getElementById('output').value = list.join('\n');
+    }
+
+    // === ADD FLAVOR (with categories) ===
     document.getElementById('addFlavor').onclick = () => {
-      const fullName = prompt('Enter full flavor name:'); if (!fullName) return;
-      const code = prompt('Enter warehouse code (X-Y-Z):'); if (!code) return;
+      const fullName = prompt('Enter full flavor name:');
+      if (!fullName) return;
+      const code = prompt('Enter warehouse code (X-Y-Z):');
+      if (!code) return;
       const isFID = confirm('Add as flavor in development (FID)?');
       let shorthand, fullOut;
       if (isFID) {
@@ -226,21 +438,73 @@
         fullOut = `${fullName} (FID)`;
       } else {
         shorthand = prompt('Enter shorthand label for warehouse:');
-        fullOut = fullName;
+        fullOut = fullName.trim();
       }
       CODE_TO_SHORTHAND[code] = shorthand;
       SHORTHAND_TO_FULL[shorthand] = fullOut;
+      // Ask for categories
+      const catInput = prompt(
+        'Enter comma-separated categories for this flavor:\n' +
+        'Vegan, Whey, Fruit, Caffeinated, Subscriber Only'
+      );
+      if (catInput) {
+        const cats = catInput.split(',').map(s => s.trim()).filter(s => s);
+        cats.forEach(cat => {
+          if (FLAVORS_BY_TYPE[cat]) {
+            if (!FLAVORS_BY_TYPE[cat].includes(fullOut)) {
+              FLAVORS_BY_TYPE[cat].push(fullOut);
+            }
+          }
+        });
+      }
       rebuildMaps();
       saveStorage();
       alert(`Added mapping: ${shorthand} ↔ ${fullOut}`);
     };
 
-    // Event hooks
-    ['convertCode2Full','convertFull2Code','sortCode2Full','sortFull2Code'].forEach(id => {
-      document.getElementById(id).onclick = () => {
-        document.getElementById('output').value = window[id](document.getElementById('input').value);
-      };
-    });
+    // === DELETE FLAVOR (only custom entries) ===
+    document.getElementById('deleteFlavor').onclick = () => {
+      const toDelete = prompt('Enter full flavor name to delete:');
+      if (!toDelete) return;
+      const full = toDelete.trim();
+      // Find shorthand entry
+      const shEntry = Object.entries(SHORTHAND_TO_FULL).find(([sh, f]) => f === full);
+      if (!shEntry) {
+        alert('Flavor not found.');
+        return;
+      }
+      const shorthand = shEntry[0];
+      // Find code for that shorthand
+      const codeEntry = Object.entries(CODE_TO_SHORTHAND).find(([c, s]) => s === shorthand);
+      if (codeEntry) {
+        const code = codeEntry[0];
+        delete CODE_TO_SHORTHAND[code];
+      }
+      delete SHORTHAND_TO_FULL[shorthand];
+      // Remove from categories
+      for (const cat in FLAVORS_BY_TYPE) {
+        FLAVORS_BY_TYPE[cat] = FLAVORS_BY_TYPE[cat].filter(f => f !== full);
+      }
+      rebuildMaps();
+      saveStorage();
+      alert(`Deleted flavor: ${full}`);
+    };
+
+    // === EVENT HOOKS ===
+    document.getElementById('convertCode2Full').onclick = () => {
+      document.getElementById('output').value = convertCode2Full(document.getElementById('input').value);
+    };
+    document.getElementById('convertFull2Code').onclick = () => {
+      document.getElementById('output').value = convertFull2Code(document.getElementById('input').value);
+    };
+    document.getElementById('sortCode2Full').onclick = () => {
+      document.getElementById('output').value = sortCode2Full(document.getElementById('input').value);
+    };
+    document.getElementById('sortFull2Code').onclick = () => {
+      document.getElementById('output').value = sortFull2Code(document.getElementById('input').value);
+    };
+    document.getElementById('printByCategory').onclick = printByCategory;
   </script>
 </body>
 </html>
+
